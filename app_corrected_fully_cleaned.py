@@ -5,7 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Erhebungsbogen & Sanierungs-ROI", layout="wide")
+st.set_page_config(page_title="Qrauts AG Erhebungsbogen & Sanierungs-ROI", layout="wide")
 
 # ------------------------------
 # Helper: Baupreisindex (Destatis, 2021=100) - Instandhaltung Wohngebäude (ohne Schönheitsreparaturen)
