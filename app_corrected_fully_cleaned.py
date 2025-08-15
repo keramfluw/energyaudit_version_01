@@ -509,8 +509,8 @@ with tab3:
     fig2 = go.Figure(go.Waterfall(
         name="Kostenwirkung",
         orientation="v",
-        measure=["absolute", "relative", "relative", "total
-x=wf["Stufe"],
+        measure=["absolute", "relative", "relative", "total"],
+        x=wf["Stufe"],
         y=wf["Wert"],
         connector={"line": {"color": "rgb(63, 63, 63)"}}
     ))
