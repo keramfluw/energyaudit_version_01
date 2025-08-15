@@ -1,8 +1,12 @@
+# app_corrected_fully_cleaned.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
+
 st.set_page_config(page_title="Erhebungsbogen & Sanierungs-ROI", layout="wide")
+
 # ------------------------------
 # Helper: Baupreisindex (Destatis, 2021=100) - Instandhaltung Wohngebäude (ohne Schönheitsreparaturen)
 # Quelle: Destatis, Konjunkturindikator bpr210, Stand 10.07.2025
@@ -15,6 +19,7 @@ BAUPREISINDEX_INST = {
     "2025": {"I": 135.2, "II": 136.4}
 }
 INDEX_BASE = 100.0  # 2021 Jahresdurchschnitt = 100
+
 # ------------------------------
 # Default Emissionsfaktoren (kg CO2/kWh) & CO2-Preis
 # Quellenhinweis im README (UBA/BMWK/BAFA)
@@ -26,6 +31,7 @@ DEFAULT_EF = {
     "fernwaerme": 0.2  # Platzhalter, standortabhängig – bitte anpassen
 }
 DEFAULT_CO2_PRICE_EUR_T = 55.0  # 2025 (BEHG) – kann angepasst werden
+
 # ------------------------------
 # Measures library (editable in-app)
 # capex_unit at index=100 (Jahresdurchschnitt 2021), scaled by selected Destatis-Index
@@ -154,6 +160,7 @@ MEASURES = [
         "affects": {"fuel_switch_to_hp": True, "scop": 3.0, "coverage_share": 1.0}
     }
 ]
+
 # Utility: get index value
 def get_index_value(year: str, quarter: str) -> float:
     try:
@@ -163,6 +170,8 @@ def get_index_value(year: str, quarter: str) -> float:
         y = max(BAUPREISINDEX_INST.keys())
         q = list(BAUPREISINDEX_INST[y].keys())[-1]
         return BAUPREISINDEX_INST[y][q]
+
+# Sidebar inputs
 st.sidebar.header("Allgemeine Parameter")
 colA, colB = st.sidebar.columns(2)
 area_m2 = colA.number_input("Gebäudenutzfläche [m²]", min_value=0.0, value=2500.0, step=10.0)
@@ -209,6 +218,7 @@ cap_modernisierung_eur = st.sidebar.number_input("Kappungsgrenze Modernisierung 
 cap_low_rent_eur = st.sidebar.number_input("Kappungsgrenze bei Miete <7 €/m² [€/m² in 6 Jahren]", min_value=0.0, value=2.0, step=0.5)
 cap_heating_special_eur = st.sidebar.number_input("Sonder-Kappungsgrenze Heizung (§559e) [€/m² in 6 Jahren]", min_value=0.0, value=0.5, step=0.1)
 avg_rent_eur_m2 = st.sidebar.number_input("Aktuelle Nettokaltmiete [€/m²]", min_value=0.0, value=9.0, step=0.1)
+
 # ------------------------------
 # Derived quantities
 # ------------------------------
@@ -222,10 +232,12 @@ derived = {
     "pv_kwp": pv_kwp,
     "pv_specific_yield": pv_yield,
 }
+
 # Derive approximate peak heat load from annual heat energy (full-load hours heuristic)
 flh = st.sidebar.number_input("Vollbenutzungsstunden Heizung [h/a] (Heuristik)", min_value=500, max_value=4000, value=2000, step=50)
 derived_heat_load_kw = e_heat_kwh / max(1, flh)
 derived["derived_heat_load"] = derived_heat_load_kw
+
 # ------------------------------
 # Baseline KPIs
 # ------------------------------
@@ -239,6 +251,7 @@ if apply_co2_el:
     co2_cost_baseline += co2_el_t * co2_price
 if apply_co2_heat:
     co2_cost_baseline += co2_heat_t * co2_price
+
 baseline = {
     "Energie Strom [kWh/a]": e_el_kwh,
     "Energie Heizung [kWh/a]": e_heat_kwh,
@@ -249,11 +262,13 @@ baseline = {
     "CO2-Kosten [€/a]": co2_cost_baseline,
     "Gesamtkosten [€/a]": cost_el + cost_heat + co2_cost_baseline
 }
+
 # ------------------------------
 # Measures editor
 # ------------------------------
 st.title("Erhebungsbogen & Szenario-App – Energetische Sanierung")
 tab1, tab2, tab3 = st.tabs(["1) Erhebungsbogen & Basis", "2) Maßnahmen", "3) Ergebnisse & Szenarien"])
+
 with tab1:
     st.subheader("Basisdaten & Kennzahlen")
     col1, col2, col3 = st.columns(3)
@@ -264,6 +279,7 @@ with tab1:
     df_base = pd.DataFrame.from_dict(baseline, orient="index", columns=["Wert"])
     st.dataframe(df_base)
     st.markdown("**Hinweis:** Emissionsfaktoren, CO₂-Preis und Energiepreise sind Eingangsparameter und sollten projektspezifisch belegt werden.")
+
 # Build editable measures dataframe
 def build_measures_df():
     rows = []
@@ -281,6 +297,7 @@ def build_measures_df():
             qty = pv_kwp
         elif m["default_qty_from"] == "derived_heat_load":
             qty = derived_heat_load_kw
+            
         rows.append({
             "Aktiv": False,
             "Code": m["code"],
@@ -298,13 +315,15 @@ def build_measures_df():
             "WRG-Zusatzstrom [kWh/Wohneinheit]": float(m["affects"].get("electricity_extra_kwh_per_unit", 0.0)),
             "HP SCOP": float(m["affects"].get("scop", 0.0)),
             "HP Abdeckung Wärme [%]": float(m["affects"].get("coverage_share", 0.0) * 100.0),
-            "PV-spez. Ertrag [kWh/kWp]": float(m["affects"].get("pv_specific_yield", pv_yield) ),
+            "PV-spez. Ertrag [kWh/kWp]": float(m["affects"].get("pv_specific_yield", pv_yield)),
             "PV-EV-Anteil [%]": float(m["affects"].get("self_consumption_share", pv_sc) * 100.0),
             "PV-Einspeise [€/kWh]": float(m["affects"].get("feed_in_tariff_eur_kwh", pv_fit))
         })
     return pd.DataFrame(rows)
+
 if "measures_df" not in st.session_state:
     st.session_state["measures_df"] = build_measures_df()
+
 with tab2:
     st.subheader("Maßnahmenkatalog (bearbeitbar)")
     st.markdown("Aktivieren Sie Maßnahmen, passen Sie Mengen, Einsparannahmen und Capex an. Investitionskosten werden mit dem ausgewählten **Baupreisindex (Instandhaltung)** skaliert.")
@@ -330,6 +349,7 @@ with tab2:
         use_container_width=True
     )
     st.session_state["measures_df"] = edited_df
+
 # ------------------------------
 # Simulation engine
 # ------------------------------
@@ -349,19 +369,23 @@ def simulate(measures_df: pd.DataFrame):
     total_capex = 0.0
     ann_capex_general = 0.0
     ann_capex_heating = 0.0
+    
     for _, row in measures_df.iterrows():
         if not bool(row.get("Aktiv", False)):
             continue
+            
         code = row["Code"]
         qty = float(row["Menge"] or 0.0)
         capex_unit_base = float(row["Capex/Einheit @Index100 [€]"] or 0.0)
         capex = qty * capex_unit_base * (index_factor)
         total_capex += capex
+        
         # Umlage-Typ identifizieren (vereinfacht)
         if code == "heat_pump_aw":
             ann_capex_heating += capex * umlage_pct_heating
         else:
             ann_capex_general += capex * umlage_pct_general
+            
         # Savings modeling
         if code == "led_lighting":
             share = (row["Stromanteil für LED [% vom Strom]"] or 0.0) / 100.0
@@ -376,7 +400,6 @@ def simulate(measures_df: pd.DataFrame):
             pv_prod = spec * qty
             pv_self_kwh += pv_prod * sc
             pv_feed_kwh += pv_prod * (1.0 - sc)
-            # keine direkte Veränderung von el_factor, wir ziehen später ab
         elif code == "heat_pump_aw":
             hp_active = True
             hp_scop = float(row["HP SCOP"] or 3.0)
@@ -387,9 +410,11 @@ def simulate(measures_df: pd.DataFrame):
             e_pct = (row["Einsparung Strom [%]"] or 0.0) / 100.0
             heat_factor *= (1.0 - h_pct)
             el_factor *= (1.0 - e_pct)
+    
     # Apply multiplicative reductions
     heat_after = heat * heat_factor
     el_after = el * el_factor
+    
     # Apply heat pump fuel switch after envelope/optimization effects
     hp_el_kwh = 0.0
     if hp_active and hp_coverage > 0.0 and hp_scop > 0.1:
@@ -397,12 +422,15 @@ def simulate(measures_df: pd.DataFrame):
         hp_el_kwh = covered_heat / hp_scop
         heat_after = heat_after * (1.0 - hp_coverage)  # Rest ggf. mit altem Carrier
         el_after += hp_el_kwh
+    
     # Apply PV self-consumption to reduce purchased electricity
     el_after = max(0.0, el_after - pv_self_kwh)
     # Add extra electricity consumption (e.g. WRG)
     el_after += extra_el_kwh
+    
     # Costs & emissions after
-    cost_el_after = el_after * p_el - pv_feed_kwh * float(measures_df.loc[measures_df["Code"]=="pv_system", "PV-Einspeise [€/kWh]"].values[0] if "pv_system" in measures_df["Code"].values else 0.0)
+    pv_feed_in_rate = float(measures_df.loc[measures_df["Code"]=="pv_system", "PV-Einspeise [€/kWh]"].values[0] if "pv_system" in measures_df["Code"].values else 0.0)
+    cost_el_after = el_after * p_el - pv_feed_kwh * pv_feed_in_rate
     cost_heat_after = heat_after * p_heat
     co2_el_after_t = el_after * ef_el / 1000.0
     co2_heat_after_t = heat_after * ef_heat / 1000.0
@@ -411,6 +439,7 @@ def simulate(measures_df: pd.DataFrame):
         co2_cost_after += co2_el_after_t * co2_price
     if apply_co2_heat:
         co2_cost_after += co2_heat_after_t * co2_price
+        
     totals = {
         "capex_total": total_capex,
         "ann_capex_general": ann_capex_general,
@@ -427,13 +456,16 @@ def simulate(measures_df: pd.DataFrame):
         "co2_cost_after": co2_cost_after
     }
     return totals
+
 with tab3:
     st.subheader("Ergebnisse & Szenarien")
     results = simulate(st.session_state["measures_df"])
+    
     # Summaries
     cost_after_total = results["cost_el_after"] + results["cost_heat_after"] + results["co2_cost_after"]
     savings_eur_pa = baseline["Gesamtkosten [€/a]"] - cost_after_total
     co2_savings_t = (baseline["Emissionen Strom [tCO2/a]"] + baseline["Emissionen Heizung [tCO2/a]"]) - (results["co2_el_after_t"] + results["co2_heat_after_t"])
+    
     # Umlage – vereinfachte Abbildung §559 / §559e (Kappungsgrenzen je 6 Jahre)
     cap_limit = cap_low_rent_eur if avg_rent_eur_m2 < 7.0 else cap_modernisierung_eur
     # jährliche Obergrenze pro m²: Cap / 6
@@ -444,11 +476,13 @@ with tab3:
     ann_umlage_total = ann_umlage_general + ann_umlage_heating
     landlord_net_savings = savings_eur_pa + ann_umlage_total
     simple_payback_y = results["capex_total"] / max(1e-9, landlord_net_savings) if landlord_net_savings > 0 else np.inf
+    
     cols = st.columns(4)
     cols[0].metric("CAPEX gesamt [€]", f"{results['capex_total']:,.0f}".replace(",", "."))
     cols[1].metric("Einsparung p.a. [€]", f"{savings_eur_pa:,.0f}".replace(",", "."))
     cols[2].metric("CO₂-Einsparung [t/a]", f"{co2_savings_t:,.2f}".replace(",", "."))
     cols[3].metric("Amortisation (vereinfachte) [a]", "∞" if np.isinf(simple_payback_y) else f"{simple_payback_y:,.1f}".replace(",", "."))
+    
     st.markdown("### Kosten & Emissionen – Vorher/Nachher")
     df_comp = pd.DataFrame({
         "Kategorie": ["Stromkosten", "Heizkosten", "CO₂-Kosten", "Gesamt"],
@@ -456,6 +490,7 @@ with tab3:
         "Nachher [€/a]": [results["cost_el_after"], results["cost_heat_after"], results["co2_cost_after"], cost_after_total]
     })
     st.dataframe(df_comp, use_container_width=True)
+    
     st.markdown("### Strom- und Heizenergie – Vorher/Nachher [kWh/a]")
     df_energy = pd.DataFrame({
         "Energie": ["Strom", "Heizung"],
@@ -464,47 +499,14 @@ with tab3:
     })
     fig1 = px.bar(df_energy, x="Energie", y=["Vorher", "Nachher"], barmode="group", title="Energieverbrauch [kWh/a]")
     st.plotly_chart(fig1, use_container_width=True)
+    
     st.markdown("### Waterfall: Jährliche Netto-Wirkung [€]")
     wf = pd.DataFrame({
         "Stufe": ["Baseline-Kosten", "– Einsparungen Energie/CO₂", "+ Umlage (Mieter)", "Gesamt Nachher"],
         "Wert": [baseline["Gesamtkosten [€/a]"], -savings_eur_pa, ann_umlage_total, cost_after_total]
     })
-    import plotly.graph_objects as go
-wf = pd.DataFrame({
-    "Stufe": ["Baseline-Kosten", "– Einsparungen Energie/CO₂", "+ Umlage (Mieter)", "Gesamt Nachher"],
-    "Wert": [baseline["Gesamtkosten [€/a]"], -savings_eur_pa, ann_umlage_total, cost_after_total]
-})
-fig2 = go.Figure(go.Waterfall(
-    name="Kostenwirkung",
-    orientation="v",
-    measure=["absolute", "relative", "relative", "total"],
-    x=wf["Stufe"],
-    y=wf["Wert"],
-    connector={"line": {"color": "rgb(63, 63, 63)"}}
-))
-fig2.update_layout(title="Kostenwirkung p.a.", waterfallgap=0.3)
-st.plotly_chart(fig2, use_container_width=True)
-    st.plotly_chart(fig2, use_container_width=True)
-    st.markdown("### Detail: Umlage (vereinfachtes Modell)")
-    st.write(f"Allg. Umlage (§559, {umlage_pct_general*100:.1f}% p.a.) begrenzt auf {annual_cap_per_m2:.2f} €/m²·a, Heizung (§559e, {umlage_pct_heating*100:.1f}% p.a.) begrenzt auf {annual_cap_heating_per_m2:.2f} €/m²·a.")
-    df_umlage = pd.DataFrame({
-        "Komponente": ["Umlage allg.", "Umlage Heizung", "Umlage gesamt"],
-        "€/a": [ann_umlage_general, ann_umlage_heating, ann_umlage_total],
-        "€/m²·a": [ann_umlage_general/max(1.0, rentable_area_m2), ann_umlage_heating/max(1.0, rentable_area_m2), ann_umlage_total/max(1.0, rentable_area_m2)]
-    })
-    st.dataframe(df_umlage, use_container_width=True)
-    st.markdown("### Hinweise")
-    st.info(
-        "• Investitionskosten werden anhand des Destatis **Baupreisindex (Instandhaltung, 2021=100)** skaliert.\n"
-        "• Einsparannahmen sind Richtwerte und müssen objektbezogen validiert werden (DIN EN 16247/DIN V 18599).\n"
-        "• Umlage-Berechnungen bilden §559/§559e BGB als **vereinfachte** Obergrenzen ab – rechtliche Prüfung erforderlich.\n"
-        "• PV-Logik: Eigenverbrauch reduziert Strombezug; Überschuss wird mit der angegebenen Vergütung saldiert."
-    )
-st.markdown("---")
-with st.expander("Quellen (Kurzüberblick)"):
-    st.markdown("""
-- **Baupreisindex (Instandhaltung, 2021=100)**: Destatis, Konjunkturindikator *bpr210* (Stand 10.07.2025).
-- **CO₂-Preis (BEHG)**: DEHSt/Bundesregierung – 2024: 45 €/t, 2025: 55 €/t.
-- **Emissionsfaktor Strommix**: UBA – 2024: 363 g CO₂/kWh (Inlandsverbrauch).
-- **Erdgas/Heizöl Emissionsfaktoren**: BMWK/BAFA Richtwerte.
-    """)
+    
+    fig2 = go.Figure(go.Waterfall(
+        name="Kostenwirkung",
+        orientation="v",
+        measure=["absolute", "relative", "relative", "total
