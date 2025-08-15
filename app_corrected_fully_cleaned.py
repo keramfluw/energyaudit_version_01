@@ -266,7 +266,7 @@ baseline = {
 # ------------------------------
 # Measures editor
 # ------------------------------
-st.title("Erhebungsbogen & Szenario-App – Energetische Sanierung")
+st.title("Qrauts AG Erhebungsbogen & Szenario-App – Energetische Sanierung")
 tab1, tab2, tab3 = st.tabs(["1) Erhebungsbogen & Basis", "2) Maßnahmen", "3) Ergebnisse & Szenarien"])
 
 with tab1:
