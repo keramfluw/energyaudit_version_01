@@ -510,3 +510,35 @@ with tab3:
         name="Kostenwirkung",
         orientation="v",
         measure=["absolute", "relative", "relative", "total
+x=wf["Stufe"],
+        y=wf["Wert"],
+        connector={"line": {"color": "rgb(63, 63, 63)"}}
+    ))
+    fig2.update_layout(title="Kostenwirkung p.a.", waterfallgap=0.3)
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    st.markdown("### Detail: Umlage (vereinfachtes Modell)")
+    st.write(f"Allg. Umlage (§559, {umlage_pct_general*100:.1f}% p.a.) begrenzt auf {annual_cap_per_m2:.2f} €/m²·a, Heizung (§559e, {umlage_pct_heating*100:.1f}% p.a.) begrenzt auf {annual_cap_heating_per_m2:.2f} €/m²·a.")
+    df_umlage = pd.DataFrame({
+        "Komponente": ["Umlage allg.", "Umlage Heizung", "Umlage gesamt"],
+        "€/a": [ann_umlage_general, ann_umlage_heating, ann_umlage_total],
+        "€/m²·a": [ann_umlage_general/max(1.0, rentable_area_m2), ann_umlage_heating/max(1.0, rentable_area_m2), ann_umlage_total/max(1.0, rentable_area_m2)]
+    })
+    st.dataframe(df_umlage, use_container_width=True)
+    
+    st.markdown("### Hinweise")
+    st.info(
+        "• Investitionskosten werden anhand des Destatis **Baupreisindex (Instandhaltung, 2021=100)** skaliert.\n"
+        "• Einsparannahmen sind Richtwerte und müssen objektbezogen validiert werden (DIN EN 16247/DIN V 18599).\n"
+        "• Umlage-Berechnungen bilden §559/§559e BGB als **vereinfachte** Obergrenzen ab – rechtliche Prüfung erforderlich.\n"
+        "• PV-Logik: Eigenverbrauch reduziert Strombezug; Überschuss wird mit der angegebenen Vergütung saldiert."
+    )
+
+st.markdown("---")
+with st.expander("Quellen (Kurzüberblick)"):
+    st.markdown("""
+- **Baupreisindex (Instandhaltung, 2021=100)**: Destatis, Konjunkturindikator *bpr210* (Stand 10.07.2025).
+- **CO₂-Preis (BEHG)**: DEHSt/Bundesregierung – 2024: 45 €/t, 2025: 55 €/t.
+- **Emissionsfaktor Strommix**: UBA – 2024: 363 g CO₂/kWh (Inlandsverbrauch).
+- **Erdgas/Heizöl Emissionsfaktoren**: BMWK/BAFA Richtwerte.
+    """)
